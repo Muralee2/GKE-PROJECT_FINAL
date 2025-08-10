@@ -1,7 +1,7 @@
-name: Terragrunt Destroy from GCS State
+name: Terragrunt Destroy (Exclude GKE Cluster)
 
 on:
-  workflow_dispatch: # Manual trigger
+  workflow_dispatch:
 
 jobs:
   terragrunt-destroy:
@@ -13,11 +13,9 @@ jobs:
       BUCKET_NAME: samurai-og1-bucket
 
     steps:
-      # 1. Checkout repo
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Authenticate to GCP
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -28,13 +26,11 @@ jobs:
           gcloud config set project $GOOGLE_PROJECT
           gcloud config set compute/region $GOOGLE_REGION
 
-      # 3. Install Terraform
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.7.5
 
-      # 4. Install Terragrunt
       - name: Install Terragrunt
         run: |
           TG_VERSION="0.84.1"
@@ -42,11 +38,10 @@ jobs:
           sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
           sudo chmod +x /usr/local/bin/terragrunt
 
-      # 5. Check if state files exist for modules
       - name: Check if state files exist
         id: check_state
         run: |
-          modules=("gke-cluster" "firewall" "network")
+          modules=("firewall" "network")
           missing=0
           for module in "${modules[@]}"; do
             echo "Checking $module state..."
@@ -62,20 +57,12 @@ jobs:
             exit 0
           fi
 
-      # 6. Destroy GKE cluster first (this removes node pools, load balancers, firewall rules related to cluster)
-      - name: Destroy GKE cluster
-        run: |
-          cd live/dev/gke-cluster
-          terragrunt destroy --auto-approve --non-interactive
-
-      # 7. Destroy firewall rules next
-      - name: Destroy firewall rules
+      - name: Destroy firewall rules only
         run: |
           cd live/dev/firewall
           terragrunt destroy --auto-approve --non-interactive
 
-      # 8. Destroy network last
-      - name: Destroy network
+      - name: Destroy network only
         run: |
           cd live/dev/network
           terragrunt destroy --auto-approve --non-interactive
